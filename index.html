@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente Interactivo de Herramientas de BI</title>
+    <!-- Chosen Palette: Calm Harmony (Warm Neutrals) -->
+    <!-- Application Structure Plan: The SPA is structured as a non-linear decision-making tool, moving beyond the report's linear format. It starts with an interactive "Tool Selector" to give users an immediate, personalized recommendation based on their role/need. This is followed by a high-level "At-a-Glance" comparison grid for quick reference. A "Deep Dive" section uses tabs and radar charts for detailed, visual analysis of each tool. A simplified "Back to Top" button is added after the detailed analysis for improved navigation. -->
+    <!-- Visualization & Content Choices:
+        - Report Info: Comparing 4 BI tools' strengths/weaknesses. -> Goal: Compare. -> Viz/Method: Interactive Radar Charts (Chart.js/Canvas) per tool. -> Interaction: Static visual comparison. -> Justification: Radar charts are perfect for showing multi-dimensional strengths/weaknesses in a single, easy-to-compare glyph.
+        - Report Info: Recommendations based on user profiles (Scientist, Analyst, etc.). -> Goal: Organize/Inform. -> Viz/Method: Interactive Card Selector (HTML/CSS/JS). -> Interaction: User clicks their profile, the app highlights the recommended tool and summary. -> Justification: Turns a static recommendation list into an interactive "wizard," engaging the user and providing immediate, personalized value.
+        - Report Info: Evolution of BI (Descriptive to Prescriptive). -> Goal: Organize/Show Process. -> Viz/Method: Horizontal Flow Diagram (Styled HTML/CSS Flexbox). -> Interaction: Static visual. -> Justification: Clearly illustrates the progression concept from the report without using prohibited SVG/Mermaid.
+        - Report Info: Detailed pros, cons, use cases for each tool. -> Goal: Inform. -> Viz/Method: Tabbed Interface (HTML/CSS/JS). -> Interaction: User clicks tabs to switch between tools. -> Justification: Organizes a large amount of detailed text into manageable, non-overwhelming chunks, improving readability. Tab styling unified for desktop and mobile.
+        - Feature: Back to Top button. -> Goal: Organize/Navigate. -> Viz/Method: Inline button (HTML/CSS/JS) as a simple character. -> Interaction: User clicks to scroll smoothly to top. -> Justification: Improves usability for long single-page applications. Positioned directly after "Análisis Detallado."
+        -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Lato', sans-serif;
+            background-color: #f4f1eb;
+            color: #333333;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        .profile-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .profile-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .profile-card.selected {
+            border-color: #4a6c6f;
+            box-shadow: 0 0 15px rgba(74, 108, 111, 0.3);
+            transform: translateY(-5px);
+        }
+        #recommendation-section {
+            transition: opacity 0.5s ease-in-out;
+        }
+        .mobile-menu-open {
+            display: block !important;
+        }
+
+        /* Styles for the tool tabs in "Análisis Detallado" */
+        .tool-tab-wrapper { /* Wrapper to control flex direction and spacing */
+            display: flex;
+            flex-direction: column; /* Stacked by default (mobile) */
+            gap: 0.5rem; /* Spacing for stacked buttons */
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Default inactive tab styles (mobile & desktop) */
+        .tool-tab {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.2s ease-in-out;
+            text-align: center;
+            border: none; /* Remove default button border */
+
+            /* Mobile styling for inactive tabs */
+            width: 100%; /* Full width on mobile */
+            border-radius: 0.5rem; /* Rounded corners for mobile buttons */
+            background-color: #e0e0e0; /* Light background for inactive */
+            color: #333333; /* Dark text for inactive */
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* subtle shadow */
+            font-weight: 400; /* Regular weight for inactive */
+        }
+
+        .tool-tab:hover {
+            background-color: #d0d0d0; /* slightly darker on hover for inactive */
+        }
+
+        /* Active tab styling (button look for mobile) */
+        .tool-tab.active-tab {
+            background-color: #4a6c6f; /* Button background */
+            color: white; /* Button text */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-weight: 700; /* Bold for active */
+        }
+        .tool-tab.active-tab:hover {
+            background-color: #3d5a5d;
+        }
+
+        /* Desktop overrides for tabs */
+        @media (min-width: 768px) { /* md breakpoint */
+            .tool-tab-wrapper {
+                flex-direction: row; /* Horizontal on desktop */
+                flex-wrap: wrap; /* Allow wrapping if many tabs, though unlikely for 4 */
+                justify-content: center; /* Center horizontally */
+                gap: 0.75rem; /* Spacing between horizontal buttons */
+                border-bottom: none; /* No horizontal line for the wrapper on desktop */
+            }
+            .tool-tab {
+                width: auto; /* Allow buttons to size to content */
+                /* No specific desktop overrides for background, color, border-radius, shadow */
+                /* They will inherit the button styles from the base .tool-tab */
+            }
+            /* .tool-tab.active-tab also inherits the button styles */
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-2xl font-bold text-[#4a6c6f]">Guía de BI</div>
+            <div class="md:hidden">
+                <button id="mobile-menu-button" class="text-gray-600 hover:text-[#4a6c6f] focus:outline-none focus:text-[#4a6c6f]">
+                    <span class="sr-only">Abrir menú principal</span>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            </div>
+            <ul class="hidden md:flex space-x-6" id="main-navigation">
+                <li><a href="#selector" class="text-gray-600 hover:text-[#4a6c6f]">Selector</a></li>
+                <li><a href="#comparison" class="text-gray-600 hover:text-[#4a6c6f]">Comparativa</a></li>
+                <li><a href="#deep-dive" class="text-gray-600 hover:text-[#4a6c6f]">Análisis</a></li>
+            </ul>
+        </nav>
+        <div id="mobile-menu" class="hidden md:hidden bg-white py-2">
+            <ul class="flex flex-col items-start px-6">
+                <li><a href="#selector" class="block py-2 text-gray-600 hover:text-[#4a6c6f]">Selector</a></li>
+                <li><a href="#comparison" class="block py-2 text-gray-600 hover:text-[#4a6c6f]">Comparativa</a></li>
+                <li><a href="#deep-dive" class="block py-2 text-gray-600 hover:text-[#4a6c6f]">Análisis</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="hero" class="text-center mb-20">
+            <h1 class="text-4xl md:text-5xl font-black mb-4">Encuentra tu Herramienta de Business Intelligence Ideal</h1>
+            <p class="text-lg text-gray-700 max-w-3xl mx-auto">Esta guía interactiva te ayuda a navegar por el complejo ecosistema de BI. Selecciona tu perfil o necesidad principal para recibir una recomendación instantánea y fundamentada.</p>
+        </section>
+
+        <section id="selector" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-2">Paso 1: ¿Quién eres o qué necesitas?</h2>
+            <p class="text-center text-gray-600 mb-10">Haz clic en la tarjeta que mejor te represente.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8" id="profile-selector">
+                <div class="profile-card cursor-pointer bg-white p-6 rounded-lg shadow-md border-2 border-transparent text-center" data-profile="scientist">
+                    <div class="text-4xl mb-4">🔬</div>
+                    <h3 class="text-xl font-bold mb-2">Científico/Ingeniero de Datos</h3>
+                    <p class="text-gray-600">Necesito automatizar pipelines complejos y usar ML/GenAI.</p>
+                </div>
+                <div class="profile-card cursor-pointer bg-white p-6 rounded-lg shadow-md border-2 border-transparent text-center" data-profile="analyst">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-xl font-bold mb-2">Analista de Negocio</h3>
+                    <p class="text-gray-600">Busco dashboards interactivos en un entorno corporativo (ej. Microsoft).</p>
+                </div>
+                <div class="profile-card cursor-pointer bg-white p-6 rounded-lg shadow-md border-2 border-transparent text-center" data-profile="marketing">
+                    <div class="text-4xl mb-4">🚀</div>
+                    <h3 class="text-xl font-bold mb-2">Equipo de Marketing/PYME</h3>
+                    <p class="text-gray-600">Quiero informes rápidos y ágiles, idealmente gratuitos (ej. Google).</p>
+                </div>
+                <div class="profile-card cursor-pointer bg-white p-6 rounded-lg shadow-md border-2 border-transparent text-center" data-profile="visualizer">
+                    <div class="text-4xl mb-4">🎨</div>
+                    <h3 class="text-xl font-bold mb-2">Narrador Visual/Analista Avanzado</h3>
+                    <p class="text-gray-600">Priorizo la máxima calidad visual y el análisis exploratorio profundo.</p>
+                </div>
+            </div>
+
+            <div id="recommendation-section" class="mt-12 opacity-0 h-0 overflow-hidden">
+                 <h2 class="text-3xl font-bold text-center mb-2">Paso 2: Tu recomendación</h2>
+                 <div id="recommendation-content" class="bg-white p-8 rounded-lg shadow-xl max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-8">
+                 </div>
+            </div>
+        </section>
+        
+        <section id="evolution" class="my-20">
+             <h2 class="text-3xl font-bold text-center mb-4">La Evolución de la Inteligencia de Negocio</h2>
+             <p class="text-center text-gray-600 mb-10 max-w-3xl mx-auto">Las herramientas de BI han transitado de solo describir el pasado a predecir y prescribir el futuro, integrando IA para una toma de decisiones más estratégica.</p>
+             <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 md:space-x-4 text-center">
+                 <div class="flex-1">
+                     <h3 class="font-bold text-lg text-gray-800">¿Qué pasó?</h3>
+                     <p class="text-sm text-gray-500">Análisis Descriptivo</p>
+                 </div>
+                 <div class="text-2xl font-bold text-[#4a6c6f] transform md:rotate-0 rotate-90">→</div>
+                 <div class="flex-1">
+                     <h3 class="font-bold text-lg text-gray-800">¿Por qué pasó?</h3>
+                     <p class="text-sm text-gray-500">Análisis Diagnóstico</p>
+                 </div>
+                 <div class="text-2xl font-bold text-[#4a6c6f] transform md:rotate-0 rotate-90">→</div>
+                 <div class="flex-1">
+                     <h3 class="font-bold text-lg text-gray-800">¿Qué pasará?</h3>
+                     <p class="text-sm text-gray-500">Análisis Predictivo (IA)</p>
+                 </div>
+                 <div class="text-2xl font-bold text-[#4a6c6f] transform md:rotate-0 rotate-90">→</div>
+                 <div class="flex-1">
+                     <h3 class="font-bold text-lg text-gray-800">¿Qué debo hacer?</h3>
+                     <p class="text-sm text-gray-500">Análisis Prescriptivo (IA)</p>
+                 </div>
+             </div>
+        </section>
+
+
+        <section id="comparison" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-10">Comparativa Rápida</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[800px] text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-4 font-bold">Herramienta</th>
+                            <th class="p-4 font-bold">Fortaleza Principal</th>
+                            <th class="p-4 font-bold">Curva de Aprendizaje</th>
+                            <th class="p-4 font-bold">Modelo de Costo</th>
+                            <th class="p-4 font-bold">Ideal para</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white">
+                        <tr class="border-b">
+                            <td class="p-4 font-bold text-[#2c5d63]">KNIME</td>
+                            <td class="p-4">Pipelines de Datos y ML</td>
+                            <td class="p-4">Baja a Alta</td>
+                            <td class="p-4">Freemium (Escala con costo)</td>
+                            <td class="p-4">Científicos de Datos</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="p-4 font-bold text-[#4a6c6f]">Power BI</td>
+                            <td class="p-4">Integración con Ecosistema Microsoft</td>
+                            <td class="p-4">Baja a Media</td>
+                            <td class="p-4">Por Usuario/Capacidad</td>
+                            <td class="p-4">Usuarios de Negocio</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="p-4 font-bold text-[#6a8b8e]">Looker Studio</td>
+                            <td class="p-4">Agilidad y Ecosistema Google</td>
+                            <td class="p-4">Muy Baja</td>
+                            <td class="p-4">Gratuito (Base)</td>
+                            <td class="p-4">Marketing y PYMES</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 font-bold text-[#8aa9ac]">Tableau</td>
+                            <td class="p-4">Calidad de Visualización Superior</td>
+                            <td class="p-4">Media a Alta</td>
+                            <td class="p-4">Premium por Rol</td>
+                            <td class="p-4">Analistas Expertos</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="deep-dive" class="scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-10">Análisis Detallado</h2>
+            <div class="bg-white rounded-lg shadow-lg p-4 sm:p-8">
+                <div class="mb-6 pb-2">
+                    <nav class="tool-tab-wrapper" id="tool-tabs">
+                        <button data-tool="knime" class="tool-tab active-tab">KNIME</button>
+                        <button data-tool="powerbi" class="tool-tab">Power BI</button>
+                        <button data-tool="looker" class="tool-tab">Looker Studio</button>
+                        <button data-tool="tableau" class="tool-tab">Tableau</button>
+                    </nav>
+                </div>
+                <div id="tool-content">
+                </div>
+            </div>
+        </section>
+
+        <section class="text-center mt-12 mb-20">
+            <button id="back-to-top-inline" class="inline-flex items-center px-6 py-3 bg-[#4a6c6f] text-white font-bold rounded-lg hover:bg-[#3d5a5d] transition-colors shadow-md">
+                ⬆️ Volver Arriba
+            </button>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-20">
+        <div class="container mx-auto px-6 py-8 text-center">
+            <p>Aplicación interactiva basada en la "Guía Estratégica para la Selección de Herramientas de BI".</p>
+            <p class="text-sm text-gray-400 mt-2 mb-2">Diseñado para facilitar la toma de decisiones estratégicas en análisis de datos.</p>
+            <p class="text-sm text-gray-300 mt-4">
+                Elaborado por Oscar Muñoz Msc. en colaboración con Gemini.
+                <a href="https://www.linkedin.com/in/oscar-muñoz-growth/" target="_blank" rel="noopener noreferrer" class="text-[#4a6c6f] hover:text-[#6a8b8e] font-bold underline ml-2">Sígueme en LinkedIn</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const toolData = {
+            knime: {
+                name: "KNIME",
+                color: "#2c5d63",
+                description: "La opción idónea para científicos e ingenieros de datos que requieren una automatización robusta de flujos de trabajo complejos, capacidades avanzadas de ETL, Machine Learning y GenAI. Su valor principal reside en la construcción y operacionalización de soluciones analíticas complejas.",
+                idealFor: ["Científicos e Ingenieros de Datos", "Desarrollo y Despliegue de Modelos ML", "Análisis de Texto y GenAI", "Gobernanza de Datos y Automatización"],
+                pricing: "<strong>Freemium:</strong> La plataforma de escritorio es gratuita. Los costos aumentan significativamente al escalar con el Business Hub para colaboración y despliegue empresarial (desde $39,900/año).",
+                chartData: [4, 5, 5, 2, 3] 
+            },
+            powerbi: {
+                name: "Power BI",
+                color: "#4a6c6f",
+                description: "La mejor elección para organizaciones inmersas en el ecosistema de Microsoft. Su propuesta de valor es hacer los datos accesibles y accionables para una audiencia empresarial amplia a través de dashboards interactivos y una integración perfecta con herramientas como Excel y Azure.",
+                idealFor: ["Empresas en Ecosistema Microsoft", "PYMES y Grandes Empresas con Presupuestos Equilibrados", "Usuarios de Negocio para Reportes Interactivos", "Análisis de Negocio con IA Simplificada (Copilot)"],
+                pricing: "<strong>Por Usuario/Capacidad:</strong> Gratuito (Desktop), Pro (~$10/usuario/mes) para compartir, y Premium (~$20/usuario/mes o por capacidad) para funciones avanzadas y grandes volúmenes de datos.",
+                chartData: [4, 4, 3, 4, 4]
+            },
+            looker: {
+                name: "Looker Studio",
+                color: "#6a8b8e",
+                description: "Perfecto para pequeñas empresas, equipos de marketing y usuarios que necesitan una solución gratuita y ágil para crear informes y dashboards básicos. Su mayor fortaleza es la integración nativa y fluida con el ecosistema de productos de Google.",
+                idealFor: ["Equipos de Marketing y eCommerce", "Pequeñas Empresas y Startups", "Usuarios con Necesidades de Visualización Básica", "Organizaciones en el Ecosistema Google"],
+                pricing: "<strong>Gratuito (Base):</strong> La herramienta es gratuita. Pueden existir costos por conectores de terceros. Existe una versión Pro de pago para capacidades empresariales y soporte.",
+                chartData: [3, 2, 1, 5, 5]
+            },
+            tableau: {
+                name: "Tableau",
+                color: "#8aa9ac",
+                description: "El estándar de oro para visualizaciones de datos de alta calidad y análisis exploratorio profundo. Es la herramienta preferida para quienes priorizan la narración visual y capacidades predictivas avanzadas, y están dispuestos a invertir en costo y aprendizaje.",
+                idealFor: ["Analistas y Científicos de Datos Expertos", "Grandes Empresas con Datos Masivos", "Empresas que Priorizan la Narración Visual", "Análisis Predictivo Avanzado"],
+                pricing: "<strong>Premium por Rol:</strong> Modelo por niveles según el rol del usuario: Creator (~$75/mes), Explorer (~$42/mes) y Viewer (~$15/mes), facturado anualmente. El costo puede ser elevado.",
+                chartData: [5, 4, 4, 3, 2]
+            }
+        };
+
+        const profileRecommendations = {
+            scientist: 'knime',
+            analyst: 'powerbi',
+            marketing: 'looker',
+            visualizer: 'tableau'
+        };
+
+        const profileSelector = document.getElementById('profile-selector');
+        const recommendationSection = document.getElementById('recommendation-section');
+        const recommendationContent = document.getElementById('recommendation-content');
+        
+        let activeChart = null;
+
+        function renderRecommendation(toolKey) {
+            const tool = toolData[toolKey];
+            recommendationContent.innerHTML = `
+                <div class="flex-shrink-0 w-full md:w-1/3">
+                     <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style="background-color: ${tool.color}20;">
+                         <span class="text-5xl" style="color: ${tool.color};">${{knime: '🔬', powerbi: '📊', looker: '🚀', tableau: '🎨'}[toolKey]}</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-center text-[${tool.color}]">${tool.name}</h3>
+                </div>
+                <div class="flex-grow">
+                    <p class="text-gray-700">${tool.description}</p>
+                    <a href="#deep-dive" onclick="document.querySelector('.tool-tab[data-tool=${toolKey}]').click()" 
+                       class="inline-block mt-4 px-6 py-2 bg-[#4a6c6f] text-white font-bold rounded-lg hover:bg-[#3d5a5d] transition-colors shadow-md">
+                       Ver análisis detallado &rarr;
+                    </a>
+                </div>`;
+            recommendationSection.style.height = 'auto';
+            recommendationSection.style.opacity = '1';
+            
+            setTimeout(() => {
+                recommendationSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        profileSelector.addEventListener('click', (e) => {
+            const card = e.target.closest('.profile-card');
+            if (!card) return;
+
+            document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+
+            const profile = card.dataset.profile;
+            const recommendedTool = profileRecommendations[profile];
+            renderRecommendation(recommendedTool);
+        });
+        
+        const toolTabs = document.getElementById('tool-tabs');
+        const toolContentContainer = document.getElementById('tool-content');
+
+        function renderToolContent(toolKey) {
+            const tool = toolData[toolKey];
+            toolContentContainer.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-4" style="color: ${tool.color};">${tool.name}</h3>
+                        <p class="text-gray-700 mb-6">${tool.description}</p>
+                        
+                        <h4 class="font-bold text-lg mb-2">Casos de Uso Ideales:</h4>
+                        <ul class="list-none space-y-2 mb-6">
+                            ${tool.idealFor.map(item => `<li><span class="text-green-500 mr-2">✓</span>${item}</li>`).join('')}
+                        </ul>
+                        
+                        <h4 class="font-bold text-lg mb-2">Modelo de Precios:</h4>
+                        <p class="text-gray-700">${tool.pricing}</p>
+                    </div>
+                    <div>
+                        <div class="chart-container">
+                             <canvas id="toolChart"></canvas>
+                        </div>
+                    </div>
+                </div>`;
+            
+            renderRadarChart(tool.chartData, tool.color);
+        }
+
+        function renderRadarChart(data, color) {
+            if (activeChart) {
+                activeChart.destroy();
+            }
+            const ctx = document.getElementById('toolChart').getContext('2d');
+            const chartLabels = ['Visualización', 'ETL/Preparación', 'Machine Learning', 'Facilidad de Uso', 'Costo (Inverso)'];
+            
+            activeChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Puntuación',
+                        data: data,
+                        fill: true,
+                        backgroundColor: `${color}33`,
+                        borderColor: color,
+                        pointBackgroundColor: color,
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: color
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#e5e7eb' },
+                            grid: { color: '#e5e7eb' },
+                            pointLabels: { 
+                                color: '#333333',
+                                font: { size: 12 }
+                            },
+                            ticks: {
+                                color: '#6b7280',
+                                backdropColor: 'transparent',
+                                stepSize: 1
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 5
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: (tooltipItems) => {
+                                    return tooltipItems[0].label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        toolTabs.addEventListener('click', (e) => {
+            const tab = e.target.closest('.tool-tab');
+            if (!tab) return;
+
+            document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active-tab'));
+            tab.classList.add('active-tab');
+
+            renderToolContent(tab.dataset.tool);
+        });
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const hrefAttr = this.getAttribute('href');
+                if(hrefAttr.length > 1) {
+                    e.preventDefault();
+                    document.querySelector(hrefAttr).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // Mobile menu functionality
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const mainNavigationLinks = mobileMenu.querySelectorAll('a');
+
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+            mobileMenu.classList.toggle('mobile-menu-open');
+        });
+
+        mainNavigationLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+                mobileMenu.classList.remove('mobile-menu-open');
+            });
+        });
+
+        // Back to Top inline button functionality
+        const backToTopInlineButton = document.getElementById('back-to-top-inline');
+        backToTopInlineButton.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        renderToolContent('knime'); // Initialize with KNIME content
+    });
+    </script>
+</body>
+</html>
